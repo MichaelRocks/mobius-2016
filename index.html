@@ -7,7 +7,9 @@
 		<title>reveal.js</title>
 
 		<link rel="stylesheet" href="css/reveal.css">
-		<link rel="stylesheet" href="css/theme/black.css">
+		<link rel="stylesheet" href="css/theme/league.css">
+		<link rel="stylesheet" href="css/starwars/styles.css">
+		<link rel="stylesheet" href="css/starwars/textDisplay.css">
 
 		<!-- Theme used for syntax highlighting of code -->
 		<link rel="stylesheet" href="lib/css/zenburn.css">
@@ -20,12 +22,677 @@
 			link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
 			document.getElementsByTagName( 'head' )[0].appendChild( link );
 		</script>
+
+		<style>
+			.reveal .slide-number {
+				top: 8px;
+				bottom: auto;
+				font-size: 32px;
+			}
+			.reveal div.arrow-down {
+				background: none;
+				margin: auto;
+				width: 32px;
+				height: 32px;
+				background-image: url("arrow-down.svg")
+			}
+			pre {
+				background: #3f3f3f;
+				color: #dcdcdc;
+			}
+		</style>
 	</head>
 	<body>
 		<div class="reveal">
 			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
+				<section style="text-align: left" data-markdown>
+					#Bytecode Weaving 101
+					Michael Rozumyanskiy
+				</section>
+				</section>
+				<section data-background="lightsaber.png">
+				</section>
+				<section>
+					<h1>Users</h1>
+					<div tagcloud bw>
+						InstantRun
+						ProGuard
+						DexGuard
+						JRebel
+						JaCoCo
+						EasyMock
+						Mockito
+						PowerMock
+						jMock
+						Realm
+						Retrolambda
+						hugo
+						frodo
+						redex
+					<div>
+				</section>
+				<section>
+					<h1>Why?</h1>
+					<ul class="fragment">
+						<li class="fragment">Persistence</li>
+						<li class="fragment">Dependency Injection</li>
+						<li class="fragment">Mocking</li>
+						<li class="fragment">Security</li>
+						<li class="fragment">Tools</li>
+						<li class="fragment">Analysis</li>
+					</ul>
+				</section>
+				<section>
+					<section>
+						<h1>Bytecode</h1>
+						<blockquote cite="https://en.wikipedia.org/wiki/Java_bytecode">
+							&ldquo;Java bytecode is the instruction set of the Java virtual machine.&rdquo;
+						</blockquote>
+					</section>
+					<section>
+						<h3>This Java code</h3>
+						<pre><code class="hljs java">
+  private void checkErrors() {
+    if (errorReporter.hasErrors()) {
+      throw new ProcessingException(composeErrorMessage());
+    }
+  }
+						</code></pre>
+						<h3>compiles to…</h3>
+					</section>
+					<section>
+						<pre style="max-height: 500px; font-size: 14px; line-height: 1.1em;">
+
+ // access flags 0x12
+ private final checkErrors()V
+  L0
+   LINENUMBER 101 L0
+   ALOAD 0
+   GETFIELD io/michaelrocks/lightsaber/processor/ClassProcessor.errorReporter :
+     Lio/michaelrocks/lightsaber/processor/ErrorReporter;
+   INVOKEVIRTUAL io/michaelrocks/lightsaber/processor/ErrorReporter.hasErrors ()Z
+   IFEQ L1
+  L2
+   LINENUMBER 102 L2
+   NEW io/michaelrocks/lightsaber/processor/ProcessingException
+   DUP
+   ALOAD 0
+   INVOKESPECIAL io/michaelrocks/lightsaber/processor/ClassProcessor.composeErrorMessage
+     ()Ljava/lang/String;
+   INVOKESPECIAL io/michaelrocks/lightsaber/processor/ProcessingException.&lt;init>
+     (Ljava/lang/String;)V
+   CHECKCAST java/lang/Throwable
+   ATHROW
+  L1
+   LINENUMBER 104 L1
+  FRAME SAME
+   RETURN
+  L3
+   LOCALVARIABLE this Lio/michaelrocks/lightsaber/processor/ClassProcessor; L0 L3 0
+   MAXSTACK = 3
+   MAXLOCALS = 1
+						</pre>
+					</section>
+				</section>
+				<section>
+					<section>
+						<img src="bytecode.jpg" />
+					</section>
+					<section>
+						<h3>Sometimes you have to</h3>
+						<pre style="font-size: 14px; color: #ff6b68">
+
+  Exception in thread "main" java.lang.VerifyError:
+  Bad type on operand stack in putfield
+  Exception Details:
+    Location:
+      io/michaelrocks/lightsaber/sample/LightsaberSample$MembersInjector
+      .injectFields(Lio/michaelrocks/lightsaber/Injector;Ljava/lang/Object;)V @24: putfield
+    Reason:
+      Type 'io/michaelrocks/lightsaber/Injector' (current frame, stack[1])
+      is not assignable to 'io/michaelrocks/lightsaber/sample/LightsaberSample' (constant pool 38)
+    Current Frame:
+      bci: @24
+      flags: { }
+      locals: {
+        'io/michaelrocks/lightsaber/sample/LightsaberSample$MembersInjector',
+        'io/michaelrocks/lightsaber/Injector',
+        'java/lang/Object',
+        'io/michaelrocks/lightsaber/Injector'
+      }
+      stack: {
+        'io/michaelrocks/lightsaber/sample/LightsaberSample',
+        'io/michaelrocks/lightsaber/Injector'
+      }
+						</pre>
+					</section>
+				</section>
+				<section>
+					<h1>Libraries</h1>
+					<ul>
+						<li><a href="http://asm.ow2.org/">ASM</a></li>
+						<li><a href="https://jcp.org/en/jsr/detail?id=199">Java Compiler API</a></li>
+						<li><a href="https://github.com/MichaelRocks/grip">Grip</a></li>
+					</ul>
+				</section>
+				<section>
+					<section>
+					<h1>ASM</h1>
+						<blockquote cite="http://asm.ow2.org">
+							&ldquo;<strong>ASM</strong> is an all purpose Java bytecode manipulation and analysis framework.&rdquo;
+						</blockquote>
+					</section>
+					<section>
+						<h3>Analysis &amp; Manipulation</h3>
+						<pre><code class="hljs java">
+  public class MyClassVisitor extends ClassVisitor {
+    public MyClassVisitor(ClassVisitor delegate) {
+      super(ASM5, delegate);
+    }
+
+    public void visit(int version, int access, String name,
+        String signature, String superName, String[] interfaces) {
+      int newAccess = access &amp; ~ACC_FINAL;
+      super.visit(version, newAccess, name, signature superName,
+          interfaces);
+    }
+  }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Generation</h3>
+						<pre><code class="hljs java">
+  class ProviderGenerator extends GeneratorAdapter {
+    void newProvider(Provider provider) {
+      newInstance(provider.type);
+      dup();
+      loadArg(0);
+      Method constructor =
+          new Method("&lt;init>", Type.VOID_TYPE, INJECTOR_TYPE);
+      invokeConstructor(provider.type, constructor);
+    }
+  }
+						</code></pre>
+					</section>
+				</section>
+				<section>
+					<section>
+						<h1>Java Compiler API</h1>
+						<h2>JSR-199</h2>
+					</section>
+					<section>
+						<h3>More readable...</h3>
+						<pre><code class="hljs kotlin">
+  appendln("package $packageName;")
+  appendln()
+  appendln("public class $className {")
+  appendln("  public static String ${DEOBFUSCATION_METHOD.name}(final int id) {")
+  appendln("    final short[] stringIndexes = indexes[id];")
+  appendln("    final char[] stringChars = new char[stringIndexes.length];")
+  appendln("    for (int i = 0; i < stringIndexes.length; ++i) {")
+  appendln("      stringChars[i] = chars[stringIndexes[i]];")
+  appendln("    }")
+  appendln("    return new String(stringChars);")
+  appendln("  }")
+  // Some other stuff...
+  appendln("}")
+						</code></pre>
+					</section>
+					<section>
+						<h3>... than ASM</h3>
+						<pre style="font-size: 16px"><code class="hljs java">
+  ClassWriter cw = new ClassWriter(COMPUTE_MAXS | COMPUTE_FRAMES);
+  cw.visit(V1_6, ACC_PUBLIC | ACC_SUPER, name, null,
+      "java/lang/Object", null);
+  MethodVisitor mv = cw.visitMethod(ACC_PUBLIC | ACC_STATIC,
+      DEOBFUSCATION_METHOD.name, "(I)Ljava/lang/String;", null, null);
+  mv.visitCode();
+  mv.visitFieldInsn(GETSTATIC, name, "indexes", "[[S");
+  mv.visitVarInsn(ILOAD, 0);
+  mv.visitInsn(AALOAD);
+  mv.visitVarInsn(ASTORE, 1);
+  mv.visitVarInsn(ALOAD, 1);
+  mv.visitInsn(ARRAYLENGTH);
+  mv.visitIntInsn(NEWARRAY, T_CHAR);
+  mv.visitVarInsn(ASTORE, 2);
+  // 25 more lines
+  mv.visitMethodInsn(INVOKESPECIAL, "java/lang/String", "&lt;init>", "([C)V", false);
+  mv.visitInsn(ARETURN);
+  mv.visitMaxs(0, 0);
+  mv.visitEnd();
+						</code></pre>
+					</section>
+					<section>
+						<h3>Debug Information</h3>
+						<pre>
+
+   L4
+    LINENUMBER 32 L4
+   FRAME CHOP 1
+    NEW java/lang/String
+    DUP
+    ALOAD 2
+    INVOKESPECIAL java/lang/String.&lt;init> ([C)V
+    ARETURN
+   L7
+    LOCALVARIABLE i I L3 L4 3
+    LOCALVARIABLE id I L0 L7 0
+    LOCALVARIABLE stringIndexes [S L1 L7 1
+    LOCALVARIABLE stringChars [C L2 L7 2
+						</pre>
+					</section>
+				</section>
+				<section>
+					<section>
+						<h1>Grip</h1>
+						<blockquote cite="https://github.com/MichaelRocks/grip">
+							&ldquo;SQL-like queries on JVM classes metadata using Kotlin DSL.&rdquo;
+						</blockquote>
+					</section>
+					<section>
+						<h3>Queries</h3>
+						<pre><code class="hljs kotlin">
+  val classesQuery =
+      grip select classes from classpath where isPublic()
+
+  val fieldsQuery =
+      grip select fields from classesQuery where
+          (isPublic() and not(isFinal()))
+						</code></pre>
+					</section>
+					<section>
+						<h3>Reflection</h3>
+						<pre><code class="hljs kotlin">
+  val mirror = grip.classRegistry.getClassMirror(type)
+
+  val fieldsWithParameterizedType = mirror.fields.filter {
+    it.signature.type is GenericType.Parameterized
+  }
+  
+  val methodsWithProvidesAnnotations = mirror.method.filter {
+    it.annotations.contains(getType&lt;Provides>())
+  }
+						</code></pre>
+					</section>
+				</section>
+				<section>
+					<h1>Tools</h1>
+					<ul>
+						<li><a href="http://asm.ow2.org/asm50/javadoc/user/org/objectweb/asm/util/ASMifier.html">ASMifier</a></li>
+						<li><a href="http://docs.oracle.com/javase/7/docs/technotes/tools/windows/javap.html">javap</a></li>
+						<li><a href="https://github.com/melix/asm-bytecode-intellij">ASM Bytecode Outline</a></li>
+						<li>Kotlin Bytecode</li>
+					</ul>
+				</section>
+				<section>
+					<h1>Enough theory</h1>
+				</section>
+				<section>
+					<h1>Let's write something</h1>
+				</section>
+				<section>
+					<h1>Paranoid</h1>
+					<h3>A string obfuscator for Android</h3>
+					<a href="https://github.com/MichaelRocks/paranoid">https://github.com/MichaelRocks/paranoid</a>
+				</section>
+				<section>
+					<h1>Idea</h1>
+					<div class="fragment">Find classes to <span style="font-family: monospace">@Obfuscate</span></div>
+					<div class="fragment">
+						<div class="arrow-down"></div>
+						Extract string constants
+					</div>
+					<div class="fragment">
+						<div class="arrow-down"></div>
+						Replace constants with methods
+					</div>
+				</section>
+				<section>
+					<h1>Components</h1>
+					<p class="fragment">API &amp; runtime</p>
+					<p class="fragment">Processor</p>
+					<p class="fragment">Build plugin</p>
+				</section>
+				<section>
+					<h1>API</h1>
+					<pre><code class="hljs java">
+	@Target(ElementType.TYPE)
+	@Retention(RetentionPolicy.RUNTIME)
+	public @interface Obfuscate {
+	}
+					</code></pre>
+				</section>
+				<section>
+					<h1>Processor</h1>
+					<p class="fragment">Analysis</p>
+					<p class="fragment">Modification</p>
+					<p class="fragment">Compilation</p>
+				</section>
+				<section>
+					<section>
+						<h2>Analysis</h2>
+						<div class="fragment">Initialize Grip</div>
+						<div class="fragment">
+							<div class="arrow-down"></div>
+							Query annotated classes
+						</div>
+					</section>
+					<section>
+						<h3>Initialize Grip</h3>
+						<pre><code class="hljs kotlin">
+	val grip = GripFactory.create(classpath)
+						</code></pre>
+					</section>
+					<section>
+						<h3>Query annotated classes</h3>
+						<pre><code class="hljs kotlin">
+	val query = grip
+	    .select(classes)
+	    .from(inputPath)
+	    .where(annotatedWith(getType&lt;Obfuscate>()))
+
+	val classes = query.execute().types
+						</code></pre>
+					</section>
+				</section>
+				<section>
+					<section>
+						<h2>Modifications</h2>
+						<div class="fragment">Process classes</div>
+						<div class="fragment">
+							<div class="arrow-down"></div>
+							Hook into a class
+						</div>
+						<div class="fragment">
+							<div class="arrow-down"></div>
+							Hook into a method
+						</div>
+						<div class="fragment">
+							<div class="arrow-down"></div>
+							Patch bytecode
+						</div>
+					</section>
+					<section>
+						<h3>Process a class</h3>
+						<pre><code class="hljs kotlin">
+  val reader = ClassReader(fileSource.readFile(path))
+  val writer = ClassWriter(reader, COMPUTE_MAXS or COMPUTE_FRAMES)
+  val patcher = ParanoidClassVisitor(writer)
+  reader.accept(patcher, ClassReader.SKIP_FRAMES)
+						</code></pre>
+					</section>
+					<section>
+						<h3>Hook into a class</h3>
+						<pre><code class="hljs kotlin">
+  class ParanoidClassVisitor(
+      delegate: ClassVisitor
+  ) : ClassVisitor(ASM5, delegate) {
+
+    override fun visitMethod(
+        access: Int, name: String, desc: String, signature: String?,
+        exceptions: Array&lt;out String>?
+    ): MethodVisitor {
+      val visitor =
+          super.visitMethod(access, name, desc, signature, exceptions)
+      return ParanoidMethodVisitor(visitor, access, name, desc)
+    }
+  }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Hook into a method</h3>
+						<pre><code class="hljs kotlin">
+  class ParanoidMethodVisitor(
+      delegate: MethodVisitor, access: Int, name: String, desc: String
+  ) : GeneratorAdapter(ASM5, delegate, access, name, desc) {
+
+    override fun visitLdcInsn(constant: Any) {
+      if (constant is String) {
+        replaceStringWithMethod(constant)
+      } else {
+        super.visitLdcInsn(constant)
+      }
+    }
+  }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Patch bytecode</h3>
+						<pre><code class="hljs kotlin">
+  fun replaceStringWithMethod(string: String) {
+    val stringId = StringRegistry.registerString(string)
+    push(stringId)
+    invokeStatic(DEOBFUSCATOR_TYPE, DEOBFUSCATION_METHOD)
+  }
+						</code></pre>
+					</section>
+				</section>
+				<section>
+					<section>
+						<h2>Compilation</h2>
+						<div class="fragment">Create a compiler</div>
+						<div class="fragment">
+							<div class="arrow-down"></div>
+							Setup a file manager
+						</div>
+						<div class="fragment">
+							<div class="arrow-down"></div>
+							Create a compilation task
+						</div>
+						<div class="fragment">
+							<div class="arrow-down"></div>
+							Run compilation
+						</div>
+					</section>
+					<section>
+						<h3>Create a compiler</h3>
+						<pre><code class="hljs kotlin">
+  val compiler = ToolProvider.getSystemJavaCompiler()
+  val diagnostics = DiagnosticCollector&lt;JavaFileObject>()
+						</code></pre>
+					</section>
+					<section>
+						<h3>Setup a file manager</h3>
+						<pre><code class="hljs kotlin">
+  val fileManager =
+      compiler.getStandardFileManager(diagnostics, null, null)
+  fileManager.setLocation(SOURCE_PATH, listOf(sourcePath))
+  fileManager.setLocation(CLASS_OUTPUT, listOf(outputPath))
+  fileManager.setLocation(CLASS_PATH, classpath)
+  fileManager.setLocation(PLATFORM_CLASS_PATH, bootClasspath)
+						</code></pre>
+					</section>
+					<section>
+						<h3>Create a compilation task</h3>
+						<pre><code class="hljs kotlin">
+  val options = listOf("-g", "-source", "6", "-target", "6")
+  val units = fileManager.getJavaFileObjects(sourceFile)
+  val task = compiler.getTask(
+      null, fileManager, diagnostics, options, null, units)
+						</code></pre>
+					</section>
+					<section>
+						<h3>Run compilation</h3>
+						<pre><code class="hljs kotlin">
+  try {
+    if (!task.call()) {
+      reportError(diagnostics)
+    }
+  } catch (exception: Exception) {
+    reportError(exception)
+  }
+						</code></pre>
+					</section>
+				</section>
+				<section>
+					<section>
+						<h1>Build Plugin</h1>
+						<h3>Transform API</h3>
+					</section>
+					<section>
+						<h3>Transform Subclass</h3>
+						<pre><code class="hljs groovy">
+    public class ParanoidTransform extends Transform {
+      /* Transform magic goes here... */
+    }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Transformation Name</h3>
+						<pre><code class="hljs groovy">
+    @Override
+    String getName() {
+      return "paranoid"
+    }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Transformation Input</h3>
+						<pre><code class="hljs groovy">
+    @Override
+    Set&lt;QualifiedContent.ContentType> getInputTypes() {
+      return EnumSet.of(QualifiedContent.DefaultContentType.CLASSES)
+    }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Transformation scope</h3>
+						<pre><code class="hljs groovy">
+    @Override
+    Set&lt;QualifiedContent.Scope> getScopes() {
+      return EnumSet.of(QualifiedContent.Scope.PROJECT)
+    }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Incremental?</h3>
+						<pre><code class="hljs groovy">
+    @Override
+    boolean isIncremental() {
+      return false
+    }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Execute Processor</h3>
+						<pre><code class="hljs groovy">
+    @Override
+    void transform(
+        Context context,
+        Collection&lt;TransformInput> inputs,
+        Collection&lt;TransformInput> referencedInputs,
+        TransformOutputProvider outputProvider,
+        boolean isIncremental
+    ) throws IOException, TransformException, InterruptedException {
+      /* Invoke your bytecode transformer. */
+    }				
+						</code></pre>
+					</section>
+					<section>
+						<h3>Register Transformation</h3>
+						<pre><code class="hljs groovy">
+	project.registerTransform(new ParanoidTransform())
+						</code></pre>
+					</section>
+				</section>
+				<section>
+					<section>
+						<h3>Example</h3>
+						<pre><code lang="java">
+  @Obfuscate
+  public class MainActivity extends Activity {
+    @Override
+    protected void onCreate(final Bundle savedInstanceState) {
+      super.onCreate(savedInstanceState);
+      setContentView(R.layout.main_activity);
+  
+      final TextView textView = (TextView) findViewById(R.id.textView);
+      textView.setText("It works!");
+    }
+  }
+						</code></pre>
+					</section>
+					<section>
+						<h3>Before</h3>
+						<pre>
+
+  ALOAD 0
+  LDC 2131427408
+  INVOKEVIRTUAL io/michaelrocks/paranoid/MainActivity.findViewById
+    (I)Landroid/view/View;
+  CHECKCAST android/widget/TextView
+  ASTORE 2
+  ALOAD 2
+  LDC "It works!"
+  INVOKEVIRTUAL android/widget/TextView.setText
+    (Ljava/lang/CharSequence;)V
+						</pre>
+					</section>
+					<section>
+						<h3>After</h3>
+						<pre>
+
+  ALOAD 0
+  LDC 2131427408
+  INVOKEVIRTUAL io/michaelrocks/paranoid/MainActivity.findViewById
+    (I)Landroid/view/View;
+  CHECKCAST android/widget/TextView
+  ASTORE 2
+  ALOAD 2
+  ICONST_0
+  INVOKESTATIC io/michaelrocks/paranoid/Obfuscator.getString
+    (I)Ljava/lang/String;
+  INVOKEVIRTUAL android/widget/TextView.setText
+    (Ljava/lang/CharSequence;)V
+    					</pre>
+					</section>
+				</section>
+				<section>
+					<section>
+						<h1>Pitfalls</h1>
+						<p class="fragment">Runtime</p>
+						<p class="fragment">Debugging</p>
+						<p class="fragment">Diagnostics</p>
+					</section>
+					<section>
+						<h3>Runtime</h3>
+						<p class="fragment">APT – <strong>at compile time</strong></p>
+						<p class="fragment">Bytecode weaving - <strong>after compilation</strong></p>
+					</section>
+					<section>
+						<h3>Debugging</h3>
+						<p class="fragment">No sources</p>
+						<p class="fragment">No debug info</p>
+						<p class="fragment">No nothing!</p>
+					</section>
+					<section>
+						<h3>Diagnostics</h3>
+						<pre>
+
+  :samples:sample-android-kotlin:transformClassesWithDexForDebug
+  Uncaught translation error: com.android.dx.cf.code.SimException:
+  local 0003: invalid
+  1 error; aborting
+  :samples:sample-android-kotlin:transformClassesWithDexForDebug <span style="color: #ff6b68">FAILED</span>
+						</pre>
+					</section>
+				</section>
+				<section>
+					<h1>And APT?</h1>
+					<ul>
+						<li class="fragment">Read-only<a>*</a></li>
+						<li class="fragment">Java only</li>
+						<li class="fragment">Annotations</li>
+					</ul>
+				</section>
+				<section style="text-align: left">
+					<h1>That's it</h1>
+					<ul>
+						<li><a href="https://github.com/MichaelRocks">github.com/MichaelRocks</a></li>
+						<li><a href="mailto:me@michaelrocks.io">me@michaelrocks.io</a></li>
+						<li><a href="https://twitter.com/coders_grace">@coders_grace</a></li>
+					</ul>
+ 				</section>
 			</div>
 		</div>
 
@@ -35,13 +702,21 @@
 		<script>
 			// More info https://github.com/hakimel/reveal.js#configuration
 			Reveal.initialize({
+				width: 960,
+				height: 540,
+				controls: true,
+				progress: true,
 				history: true,
+				center: false,
+				slideNumber: 'h/v',
 
 				// More info https://github.com/hakimel/reveal.js#dependencies
 				dependencies: [
 					{ src: 'plugin/markdown/marked.js' },
 					{ src: 'plugin/markdown/markdown.js' },
 					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/zoom-js/zoom.js', async: true },
+					{ src: 'plugin/tagcloud/tagcloud.js', async: true },
 					{ src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
 				]
 			});
